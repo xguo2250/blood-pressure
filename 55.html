@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>血压记录与可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        :root {
+            --safe-area-top: env(safe-area-inset-top);
+            --safe-area-bottom: env(safe-area-inset-bottom);
+            --safe-area-left: env(safe-area-inset-left);
+            --safe-area-right: env(safe-area-inset-right);
+        }
+        
+        body {
+            background-color: #f2f2f7;
+            color: #1c1c1e;
+            min-height: 100vh;
+            padding: calc(15px + var(--safe-area-top)) calc(15px + var(--safe-area-right)) calc(15px + var(--safe-area-bottom)) calc(15px + var(--safe-area-left));
+            padding-bottom: calc(80px + var(--safe-area-bottom));
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px 15px;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        
+        h1 {
+            font-size: 1.6rem;
+            margin-bottom: 8px;
+            color: #1c1c1e;
+            font-weight: 600;
+        }
+        
+        .subtitle {
+            font-size: 0.95rem;
+            opacity: 0.7;
+            color: #6c6c70;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        
+        .card-title {
+            font-size: 1.2rem;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #1c1c1e;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 18px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #1c1c1e;
+            font-size: 0.95rem;
+        }
+        
+        /* iOS风格滚轮选择器 */
+        .picker-container {
+            position: relative;
+            width: 100%;
+            height: 180px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 15%, rgba(255,255,255,0) 85%, rgba(255,255,255,0.95) 100%);
+            border-radius: 12px;
+            border: 1px solid #e5e5ea;
+        }
+        
+        .picker-wheel {
+            position: absolute;
+            width: 100%;
+            transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+        
+        .picker-item {
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            color: #8e8e93;
+            transition: all 0.2s ease;
+        }
+        
+        .picker-item.selected {
+            color: #007aff;
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+        
+        .picker-highlight {
+            position: absolute;
+            top: 68px;
+            left: 0;
+            right: 0;
+            height: 44px;
+            background: rgba(0, 122, 255, 0.08);
+            border-top: 0.5px solid rgba(0, 122, 255, 0.3);
+            border-bottom: 0.5px solid rgba(0, 122, 255, 0.3);
+            pointer-events: none;
+        }
+        
+        .picker-value-display {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 0.8rem;
+            color: #007aff;
+            font-weight: 500;
+        }
+        
+        .picker-unit {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            font-size: 0.75rem;
+            color: #8e8e93;
+        }
+        
+        /* 日期选择器优化 */
+        input[type="date"] {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid #e5e5ea;
+            background: #f2f2f7;
+            color: #1c1c1e;
+            font-size: 1rem;
+            -webkit-appearance: none;
+            appearance: none;
+            font-weight: 500;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #007aff, #0056b3);
+            color: white;
+            border: none;
+            padding: 16px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 12px;
+            -webkit-appearance: none;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            height: 320px;
+            margin-top: 15px;
+            background: white;
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+            font-size: 0.9rem;
+        }
+        
+        .data-table th {
+            background: #f2f2f7;
+            color: #6c6c70;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 500;
+            font-size: 0.8rem;
+            border-bottom: 0.5px solid #e5e5ea;
+        }
+        
+        .data-table td {
+            padding: 12px 8px;
+            text-align: center;
+            border-bottom: 0.5px solid #f2f2f7;
+            color: #1c1c1e;
+        }
+        
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #5856d6, #af52de);
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(88, 86, 214, 0.3);
+            color: white;
+        }
+        
+        .stat-card.high {
+            background: linear-gradient(135deg, #ff3b30, #ff6b5b);
+            box-shadow: 0 2px 8px rgba(255, 59, 48, 0.3);
+        }
+        
+        .stat-card.low {
+            background: linear-gradient(135deg, #34c759, #30d158);
+            box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 6px 0;
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+        
+        .delete-btn {
+            background: linear-gradient(135deg, #ff3b30, #ff6b5b);
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .warning { color: #ff9500; font-weight: 600; }
+        .normal { color: #34c759; font-weight: 600; }
+        .danger { color: #ff3b30; font-weight: 600; }
+        
+        /* 图表图例 */
+        .chart-legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: #6c6c70;
+        }
+        
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .legend-dot.high { background: #ff3b30; }
+        .legend-dot.high-normal { background: #8e8e93; }
+        .legend-dot.low { background: #007aff; }
+        .legend-dot.low-normal { background: #8e8e93; }
+        
+        /* 参考线说明 */
+        .reference-info {
+            background: #f2f2f7;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #6c6c70;
+        }
+        
+        .reference-info strong {
+            color: #ff3b30;
+        }
+        
+        /* iPhone 17 Pro 优化 */
+        @media (min-width: 430px) {
+            .container {
+                max-width: 430px;
+            }
+            
+            .chart-container {
+                height: 350px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+        
+        /* 横屏优化 */
+        @media (orientation: landscape) and (max-height: 500px) {
+            .stats {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .chart-container {
+                height: 250px;
+            }
+        }
+        
+        /* 暗色模式支持 */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #000;
+                color: #fff;
+            }
+            
+            .card, header {
+                background: #1c1c1e;
+            }
+            
+            .card-title, h1, label {
+                color: #fff;
+            }
+            
+            .subtitle, .data-table th, .reference-info {
+                color: #98989d;
+            }
+            
+            input[type="date"] {
+                background: #2c2c2e;
+                border-color: #3a3a3c;
+                color: #fff;
+            }
+            
+            .picker-container {
+                border-color: #3a3a3c;
+            }
+            
+            .data-table td {
+                border-bottom-color: #2c2c2e;
+                color: #fff;
+            }
+            
+            .data-table tr:hover {
+                background: #2c2c2e;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🩺 血压记录</h1>
+            <p class="subtitle">每日记录，健康追踪</p>
+        </header>
+        
+        <div class="card">
+            <h2 class="card-title">📝 新建记录</h2>
+            <div class="form-group">
+                <label for="date">测量日期</label>
+                <input type="date" id="date">
+            </div>
+            
+            <div class="form-group">
+                <label>高压 (mmHg) - 滑动选择</label>
+                <div class="picker-container" id="highPicker">
+                    <div class="picker-highlight"></div>
+                    <div class="picker-unit">mmHg</div>
+                    <div class="picker-value-display" id="highDisplay">120</div>
+                    <div class="picker-wheel" id="highWheel"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>低压 (mmHg) - 滑动选择</label>
+                <div class="picker-container" id="lowPicker">
+                    <div class="picker-highlight"></div>
+                    <div class="picker-unit">mmHg</div>
+                    <div class="picker-value-display" id="lowDisplay">80</div>
+                    <div class="picker-wheel" id="lowWheel"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>心率 (次/分) - 滑动选择</label>
+                <div class="picker-container" id="heartPicker">
+                    <div class="picker-highlight"></div>
+                    <div class="picker-unit">bpm</div>
+                    <div class="picker-value-display" id="heartDisplay">72</div>
+                    <div class="picker-wheel" id="heartWheel"></div>
+                </div>
+            </div>
+            
+            <button id="addBtn">保存记录</button>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">📊 数据趋势</h2>
+            <div class="stats">
+                <div class="stat-card high">
+                    <div class="stat-label">平均高压</div>
+                    <div class="stat-value" id="avgHigh">0</div>
+                </div>
+                <div class="stat-card low">
+                    <div class="stat-label">平均低压</div>
+                    <div class="stat-value" id="avgLow">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">最高高压</div>
+                    <div class="stat-value" id="maxHigh">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">最低低压</div>
+                    <div class="stat-value" id="minLow">0</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="bloodPressureChart"></canvas>
+            </div>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-dot high"></div>
+                    <span>高压 (超标)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot high-normal"></div>
+                    <span>高压 (正常)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot low"></div>
+                    <span>低压 (超标)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot low-normal"></div>
+                    <span>低压 (正常)</span>
+                </div>
+            </div>
+            <div class="reference-info">
+                📌 参考标准：高压 <strong>≥140</strong> 或 低压 <strong>≥90</strong> 为高血压（2025中国指南）
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 class="card-title">📋 历史记录</h2>
+            <div style="overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>高压</th>
+                            <th>低压</th>
+                            <th>心率</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataList"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 数据管理 ====================
+        let bloodPressureData = JSON.parse(localStorage.getItem('bloodPressureData')) || [];
+        
+        // 设置默认日期为今天
+        document.getElementById('date').valueAsDate = new Date();
+        
+        // 当前选择的值
+        let selectedValues = {
+            high: 120,
+            low: 80,
+            heart: 72
+        };
+        
+        // 血压标准值（2025中国高血压防治指南）
+        const HIGH_THRESHOLD = 140;  // 高压超标阈值
+        const LOW_THRESHOLD = 90;    // 低压超标阈值
+        
+        // ==================== iOS滚轮选择器 ====================
+        class WheelPicker {
+            constructor(containerId, wheelId, displayId, min, max, defaultValue, onChange) {
+                this.container = document.getElementById(containerId);
+                this.wheel = document.getElementById(wheelId);
+                this.display = document.getElementById(displayId);
+                this.min = min;
+                this.max = max;
+                this.itemHeight = 44;
+                this.selectedIndex = defaultValue - min;
+                this.onChange = onChange;
+                this.isDragging = false;
+                this.startY = 0;
+                this.currentTranslate = 0;
+                this.startTranslate = 0;
+                this.lastTap = 0;
+                
+                this.init();
+            }
+            
+            init() {
+                this.renderItems();
+                this.updatePosition();
+                this.bindEvents();
+            }
+            
+            renderItems() {
+                let html = '';
+                // 添加缓冲项使滚动更流畅
+                for (let i = this.min - 2; i <= this.max + 2; i++) {
+                    html += `<div class="picker-item" data-value="${i}">${i}</div>`;
+                }
+                this.wheel.innerHTML = html;
+                this.items = this.wheel.querySelectorAll('.picker-item');
+            }
+            
+            updatePosition() {
+                const centerOffset = (this.container.offsetHeight / 2) - (this.itemHeight / 2);
+                this.currentTranslate = centerOffset - (this.selectedIndex * this.itemHeight) - (2 * this.itemHeight);
+                this.wheel.style.transform = `translateY(${this.currentTranslate}px)`;
+                this.updateSelected();
+            }
+            
+            updateSelected() {
+                const centerOffset = (this.container.offsetHeight / 2) - (this.itemHeight / 2);
+                const index = Math.round((centerOffset - this.currentTranslate - (2 * this.itemHeight)) / this.itemHeight);
+                
+                if (index >= 0 && index <= (this.max - this.min)) {
+                    this.selectedIndex = index;
+                    const value = this.min + index;
+                    const key = this.display.id.replace('Display', '').toLowerCase();
+                    selectedValues[key] = value;
+                    this.display.textContent = value;
+                    
+                    this.items.forEach((item, i) => {
+                        item.classList.remove('selected');
+                        if (i - 2 === this.selectedIndex) {
+                            item.classList.add('selected');
+                        }
+                    });
+                    
+                    if (this.onChange) this.onChange(value);
+                }
+            }
+            
+            bindEvents() {
+                // 触摸事件
+                this.container.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.handleStart(e.touches[0].clientY);
+                }, { passive: false });
+                
+                this.container.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    this.handleMove(e.touches[0].clientY);
+                }, { passive: false });
+                
+                this.container.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.handleEnd();
+                }, { passive: false });
+                
+                // 鼠标事件（用于桌面测试）
+                this.container.addEventListener('mousedown', (e) => this.handleStart(e.clientY));
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isDragging) this.handleMove(e.clientY);
+                });
+                document.addEventListener('mouseup', () => {
+                    if (this.isDragging) this.handleEnd();
+                });
+            }
+            
+            handleStart(y) {
+                this.isDragging = true;
+                this.startY = y;
+                this.startTranslate = this.currentTranslate;
+                this.wheel.style.transition = 'none';
+            }
+            
+            handleMove(y) {
+                if (!this.isDragging) return;
+                const deltaY = y - this.startY;
+                this.currentTranslate = this.startTranslate + deltaY;
+                this.wheel.style.transform = `translateY(${this.currentTranslate}px)`;
+            }
+            
+            handleEnd() {
+                if (!this.isDragging) return;
+                this.isDragging = false;
+                this.wheel.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)';
+                
+                // 吸附到最近的项目
+                const centerOffset = (this.container.offsetHeight / 2) - (this.itemHeight / 2);
+                let index = Math.round((centerOffset - this.currentTranslate - (2 * this.itemHeight)) / this.itemHeight);
+                index = Math.max(0, Math.min(index, this.max - this.min));
+                this.selectedIndex = index;
+                this.updatePosition();
+            }
+        }
+        
+        // 初始化三个滚轮选择器
+        const highPicker = new WheelPicker(
+            'highPicker', 'highWheel', 'highDisplay',
+            90, 200, 120, (v) => selectedValues.high = v
+        );
+        
+        const lowPicker = new WheelPicker(
+            'lowPicker', 'lowWheel', 'lowDisplay',
+            55, 120, 80, (v) => selectedValues.low = v
+        );
+        
+        const heartPicker = new WheelPicker(
+            'heartPicker', 'heartWheel', 'heartDisplay',
+            40, 200, 72, (v) => selectedValues.heart = v
+        );
+        
+        // ==================== 图表初始化 ====================
+        const ctx = document.getElementById('bloodPressureChart').getContext('2d');
+        
+        // 创建渐变
+        const highGradient = ctx.createLinearGradient(0, 0, 0, 300);
+        highGradient.addColorStop(0, 'rgba(255, 59, 48, 0.3)');
+        highGradient.addColorStop(1, 'rgba(255, 59, 48, 0)');
+        
+        const lowGradient = ctx.createLinearGradient(0, 0, 0, 300);
+        lowGradient.addColorStop(0, 'rgba(0, 122, 255, 0.3)');
+        lowGradient.addColorStop(1, 'rgba(0, 122, 255, 0)');
+        
+        const bloodPressureChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '高压',
+                        data: [],
+                        borderColor: '#ff3b30',
+                        backgroundColor: highGradient,
+                        borderWidth: 2.5,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: (ctx) => {
+                            const value = ctx.raw;
+                            return value >= HIGH_THRESHOLD ? 8 : 5;
+                        },
+                        pointBackgroundColor: (ctx) => {
+                            const value = ctx.raw;
+                            return value >= HIGH_THRESHOLD ? '#ff3b30' : '#8e8e93';
+                        },
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 10
+                    },
+                    {
+                        label: '低压',
+                        data: [],
+                        borderColor: '#007aff',
+                        backgroundColor: lowGradient,
+                        borderWidth: 2.5,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: (ctx) => {
+                            const value = ctx.raw;
+                            return value >= LOW_THRESHOLD ? 8 : 5;
+                        },
+                        pointBackgroundColor: (ctx) => {
+                            const value = ctx.raw;
+                            return value >= LOW_THRESHOLD ? '#007aff' : '#8e8e93';
+                        },
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 10
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: 50,
+                        max: 210,
+                        ticks: {
+                            stepSize: 20,
+                            color: '#8e8e93',
+                            font: { size: 11 }
+                        },
+                        grid: {
+                            color: 'rgba(142, 142, 147, 0.15)',
+                            drawBorder: false
+                        },
+                        border: { display: false }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#8e8e93',
+                            font: { size: 10 },
+                            maxRotation: 45,
+                            minRotation: 45
+                        },
+                        grid: {
+                            display: false
+                        },
+                        border: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(28, 28, 30, 0.95)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        padding: 12,
+                        cornerRadius: 10,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                const isHigh = context.datasetIndex === 0;
+                                const threshold = isHigh ? HIGH_THRESHOLD : LOW_THRESHOLD;
+                                const status = value >= threshold ? ' ⚠️超标' : ' ✓正常';
+                                return `${context.dataset.label}: ${value} mmHg${status}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // ==================== 更新函数 ====================
+        function updateCharts() {
+            bloodPressureData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            const labels = bloodPressureData.map(item => {
+                const date = new Date(item.date);
+                return `${date.getMonth()+1}/${date.getDate()}`;
+            });
+            
+            const highData = bloodPressureData.map(item => item.high);
+            const lowData = bloodPressureData.map(item => item.low);
+            
+            bloodPressureChart.data.labels = labels;
+            bloodPressureChart.data.datasets[0].data = highData;
+            bloodPressureChart.data.datasets[1].data = lowData;
+            bloodPressureChart.update('none'); // 使用'none'避免完全重绘
+        }
+        
+        function updateStats() {
+            if (bloodPressureData.length === 0) {
+                document.getElementById('avgHigh').textContent = '0';
+                document.getElementById('avgLow').textContent = '0';
+                document.getElementById('maxHigh').textContent = '0';
+                document.getElementById('minLow').textContent = '0';
+                return;
+            }
+            
+            const highSum = bloodPressureData.reduce((sum, item) => sum + item.high, 0);
+            const lowSum = bloodPressureData.reduce((sum, item) => sum + item.low, 0);
+            const maxHigh = Math.max(...bloodPressureData.map(item => item.high));
+            const minLow = Math.min(...bloodPressureData.map(item => item.low));
+            
+            document.getElementById('avgHigh').textContent = (highSum / bloodPressureData.length).toFixed(0);
+            document.getElementById('avgLow').textContent = (lowSum / bloodPressureData.length).toFixed(0);
+            document.getElementById('maxHigh').textContent = maxHigh;
+            document.getElementById('minLow').textContent = minLow;
+        }
+        
+        function getStatusClass(high, low) {
+            if (high >= 160 || low >= 100) return 'danger';
+            if (high >= HIGH_THRESHOLD || low >= LOW_THRESHOLD) return 'warning';
+            return 'normal';
+        }
+        
+        function getStatusText(high, low) {
+            if (high >= 160 || low >= 100) return '偏高';
+            if (high >= HIGH_THRESHOLD || low >= LOW_THRESHOLD) return '偏高';
+            return '正常';
+        }
+        
+        function updateDataList() {
+            const tbody = document.getElementById('dataList');
+            tbody.innerHTML = '';
+            
+            // 倒序显示，最新的在前
+            [...bloodPressureData].reverse().forEach((item, index) => {
+                const row = document.createElement('tr');
+                const originalIndex = bloodPressureData.length - 1 - index;
+                const statusClass = getStatusClass(item.high, item.low);
+                const statusText = getStatusText(item.high, item.low);
+                
+                row.innerHTML = `
+                    <td>${item.date}</td>
+                    <td style="color: ${item.high >= HIGH_THRESHOLD ? '#ff3b30' : '#1c1c1e'}">${item.high}</td>
+                    <td style="color: ${item.low >= LOW_THRESHOLD ? '#007aff' : '#1c1c1e'}">${item.low}</td>
+                    <td>${item.heart}</td>
+                    <td><span class="${statusClass}">${statusText}</span></td>
+                    <td><button class="delete-btn" onclick="deleteRecord(${originalIndex})">删除</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function deleteRecord(index) {
+            if (confirm('确定要删除这条记录吗？')) {
+                bloodPressureData.splice(index, 1);
+                localStorage.setItem('bloodPressureData', JSON.stringify(bloodPressureData));
+                updateCharts();
+                updateStats();
+                updateDataList();
+            }
+        }
+        
+        // ==================== 添加记录 ====================
+        document.getElementById('addBtn').addEventListener('click', function() {
+            const date = document.getElementById('date').value;
+            const high = selectedValues.high;
+            const low = selectedValues.low;
+            const heart = selectedValues.heart;
+            
+            if (!date) {
+                alert('请选择日期');
+                return;
+            }
+            
+            if (high <= low) {
+                alert('高压必须大于低压');
+                return;
+            }
+            
+            // 检查是否已存在该日期的记录
+            const existingIndex = bloodPressureData.findIndex(item => item.date === date);
+            if (existingIndex !== -1) {
+                if (confirm('该日期已有记录，是否覆盖？')) {
+                    bloodPressureData[existingIndex] = { date, high, low, heart };
+                } else {
+                    return;
+                }
+            } else {
+                bloodPressureData.push({ date, high, low, heart });
+            }
+            
+            localStorage.setItem('bloodPressureData', JSON.stringify(bloodPressureData));
+            updateCharts();
+            updateStats();
+            updateDataList();
+            
+            // 提示
+            let message = '记录已保存';
+            if (high >= HIGH_THRESHOLD || low >= LOW_THRESHOLD) {
+                message += ' ⚠️ 血压偏高，请注意休息';
+            }
+            
+            // 使用原生alert
+            alert(message);
+            
+            // 重置为默认值
+            selectedValues.high = 120;
+            selectedValues.low = 80;
+            selectedValues.heart = 72;
+            highPicker.selectedIndex = 120 - 90;
+            lowPicker.selectedIndex = 80 - 55;
+            heartPicker.selectedIndex = 72 - 40;
+            highPicker.updatePosition();
+            lowPicker.updatePosition();
+            heartPicker.updatePosition();
+            document.getElementById('date').valueAsDate = new Date();
+        });
+        
+        // 页面加载初始化
+        window.onload = function() {
+            updateCharts();
+            updateStats();
+            updateDataList();
+        };
+    </script>
+</body>
+</html>
