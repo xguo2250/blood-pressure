@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>血压记录</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --bg:        #f5f0ea;
+  --bg2:       #ede8e1;
+  --card:      #ffffff;
+  --card2:     #f9f6f2;
+  --border:    #e0d9d0;
+  --border2:   #ccc5ba;
+  --text:      #2c2420;
+  --text-mid:  #7a6e66;
+  --text-dim:  #b5aca3;
+  --sys:       #c94040;
+  --dia:       #2a6ab5;
+  --pul:       #2a8a4a;
+  --accent:    #7a5c3a;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans SC', sans-serif;
+  min-height: 100dvh;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── HEADER ── */
+.header { padding: calc(16px + env(safe-area-inset-top)) 24px 0; margin-bottom: 18px; }
+.header-inner {
+  display:flex; align-items:flex-end; justify-content:space-between;
+  padding-bottom:14px; border-bottom:1.5px solid var(--border);
+}
+.header h1 { font-size:24px; font-weight:600; color:var(--accent); letter-spacing:.01em; }
+.header .sub { font-size:11px; color:var(--text-dim); font-family:'DM Mono',monospace; margin-top:4px; letter-spacing:.06em; }
+.hb { display:flex; align-items:center; gap:5px; color:var(--sys); font-size:11px; font-family:'DM Mono',monospace; }
+.hb svg { width:18px; height:18px; animation:pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
+
+/* ── TABS ── */
+.tabs {
+  display:flex; margin:0 24px 18px;
+  background:var(--card2); border-radius:12px; padding:3px; border:1px solid var(--border);
+  box-shadow:0 1px 4px rgba(0,0,0,0.06);
+}
+.tab {
+  flex:1; text-align:center; padding:9px 4px; border-radius:9px;
+  font-size:14px; font-weight:500; cursor:pointer; transition:all .2s;
+  color:var(--text-dim); user-select:none; letter-spacing:.03em;
+}
+.tab.active { background:var(--card); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+
+/* ── SECTIONS ── */
+.section { display:none; padding:0 20px 60px; }
+.section.active { display:block; }
+.slabel {
+  font-size:10px; font-family:'DM Mono',monospace;
+  letter-spacing:.18em; text-transform:uppercase;
+  color:var(--text-dim); margin-bottom:10px; padding-left:2px;
+}
+.card {
+  background:var(--card); border:1px solid var(--border); border-radius:18px;
+  padding:18px; margin-bottom:14px; box-shadow:0 2px 10px rgba(0,0,0,0.06);
+}
+
+/* ── BP DRUM PICKER ── */
+.pickers-row { display:flex; gap:6px; }
+.picker-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.picker-name { font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; font-family:'DM Mono',monospace; }
+.picker-name.sys { color:var(--sys); }
+.picker-name.dia { color:var(--dia); }
+.picker-name.pul { color:var(--pul); }
+
+.drum-wrap {
+  position:relative; width:100%; height:200px; overflow:hidden;
+  border-radius:12px; background:var(--bg2); border:1px solid var(--border2);
+  cursor:ns-resize; touch-action:none;
+}
+.drum-wrap::before, .drum-wrap::after {
+  content:''; position:absolute; left:0; right:0; height:78px; z-index:3; pointer-events:none;
+}
+.drum-wrap::before {
+  top:0;
+  background:linear-gradient(to bottom, rgba(237,232,225,.97) 0%, rgba(237,232,225,.55) 55%, rgba(237,232,225,0) 100%);
+}
+.drum-wrap::after {
+  bottom:0;
+  background:linear-gradient(to top, rgba(237,232,225,.97) 0%, rgba(237,232,225,.55) 55%, rgba(237,232,225,0) 100%);
+}
+.drum-selection {
+  position:absolute; top:50%; transform:translateY(-50%);
+  left:8px; right:8px; height:44px; z-index:4; pointer-events:none;
+  border-top:1.5px solid rgba(122,92,58,.3); border-bottom:1.5px solid rgba(122,92,58,.3);
+  border-radius:6px;
+}
+.drum-list { position:absolute; width:100%; top:0; z-index:2; will-change:transform; }
+
+/* FONT SIZE: center=biggest, step outward = progressively smaller */
+.drum-item {
+  height:44px; display:flex; align-items:center; justify-content:center;
+  font-family:'DM Mono',monospace; font-size:12px; font-weight:300;
+  color:var(--text-dim); user-select:none; opacity:.28;
+  transition: font-size .11s ease, font-weight .11s ease, opacity .11s ease, color .11s ease;
+}
+.drum-item.near2 { font-size:17px; font-weight:300; opacity:.52; color:var(--text-mid); }
+.drum-item.near1 { font-size:23px; font-weight:400; opacity:.74; color:var(--text-mid); }
+.drum-item.selected { font-size:34px; font-weight:600; opacity:1; color:var(--text); }
+
+.picker-value {
+  font-family:'DM Mono',monospace; font-size:13px; font-weight:500;
+  color:var(--text-mid); padding:2px 0; text-align:center;
+}
+
+/* ── TIME PICKER AREA ── */
+
+/* Collapsed clock button */
+.time-btn {
+  width:100%; display:flex; align-items:center; gap:14px;
+  background:var(--card); border:1px solid var(--border); border-radius:16px;
+  padding:14px 18px; cursor:pointer; transition:all .2s;
+  box-shadow:0 2px 10px rgba(0,0,0,0.06); margin-bottom:14px;
+  text-align:left;
+}
+.time-btn:active { opacity:.8; transform:scale(.99); }
+.time-btn-icon {
+  width:38px; height:38px; border-radius:10px; background:var(--accent-bg,#f0e8de);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  color:var(--accent); font-size:18px;
+}
+.time-btn-body { flex:1; }
+.time-btn-label { font-size:10px; color:var(--text-dim); font-family:'DM Mono',monospace; letter-spacing:.14em; text-transform:uppercase; margin-bottom:3px; }
+.time-btn-clock { font-family:'DM Mono',monospace; font-size:22px; font-weight:600; color:var(--text); letter-spacing:.04em; }
+.time-btn-date { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-mid); margin-top:2px; }
+.time-btn-arrow { color:var(--text-dim); font-size:14px; transition:transform .25s; flex-shrink:0; }
+.time-btn-arrow.open { transform:rotate(180deg); }
+
+/* Expanded panel */
+.time-panel {
+  background:var(--card); border:1px solid var(--border); border-radius:16px;
+  margin-bottom:14px; box-shadow:0 2px 10px rgba(0,0,0,0.06);
+  overflow:hidden;
+  max-height:0; opacity:0;
+  transition: max-height .38s cubic-bezier(0.4,0,0.2,1), opacity .25s ease, padding .3s;
+  padding:0 18px;
+}
+.time-panel.open {
+  max-height:700px; opacity:1; padding:18px 18px;
+}
+
+/* ── CALENDAR ── */
+.cal-header {
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;
+}
+.cal-title {
+  font-size:15px; font-weight:600; color:var(--text); letter-spacing:.02em;
+}
+.cal-nav {
+  background:none; border:1px solid var(--border); border-radius:8px;
+  color:var(--text-mid); font-size:16px; width:32px; height:32px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:all .18s; padding:0;
+}
+.cal-nav:hover { background:var(--bg2); color:var(--text); }
+.cal-weekdays {
+  display:grid; grid-template-columns:repeat(7,1fr);
+  margin-bottom:6px;
+}
+.cal-wd {
+  text-align:center; font-size:10px; font-family:'DM Mono',monospace;
+  color:var(--text-dim); padding:4px 0; letter-spacing:.05em;
+}
+.cal-grid {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:3px;
+}
+.cal-day {
+  aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+  border-radius:8px; font-size:14px; font-family:'DM Mono',monospace;
+  cursor:pointer; transition:all .15s; color:var(--text);
+  position:relative;
+}
+.cal-day:hover:not(.other-month) { background:var(--bg2); }
+.cal-day.other-month { color:var(--text-dim); opacity:.4; cursor:default; }
+.cal-day.today::after {
+  content:''; position:absolute; bottom:3px; left:50%; transform:translateX(-50%);
+  width:4px; height:4px; border-radius:50%; background:var(--accent); opacity:.6;
+}
+.cal-day.selected { background:var(--accent); color:#fff; font-weight:600; }
+.cal-day.selected::after { background:#fff; }
+.cal-day.has-record::before {
+  content:''; position:absolute; top:3px; right:3px;
+  width:5px; height:5px; border-radius:50%; background:var(--sys); opacity:.7;
+}
+.cal-divider { border:none; border-top:1px solid var(--border); margin:16px 0 14px; }
+
+.confirm-time-btn {
+  width:100%; margin-top:16px; padding:12px;
+  background:var(--bg2); border:1.5px solid var(--border2); border-radius:10px;
+  font-family:'Noto Sans SC',sans-serif; font-size:14px; font-weight:500;
+  color:var(--accent); cursor:pointer; transition:all .18s;
+  letter-spacing:.04em;
+}
+.confirm-time-btn:active { background:var(--accent); color:#fff; }
+
+.time-row { display:flex; align-items:flex-start; justify-content:center; gap:0; }
+.time-drum-col { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.time-sep {
+  font-family:'DM Mono',monospace; font-size:28px; font-weight:600;
+  color:var(--text-mid); margin:0 6px; padding-top:36px;
+}
+
+.time-drum-wrap {
+  position:relative; width:84px; height:160px; overflow:hidden;
+  border-radius:12px; background:var(--bg2); border:1px solid var(--border2);
+  cursor:ns-resize; touch-action:none;
+}
+.time-drum-wrap::before, .time-drum-wrap::after {
+  content:''; position:absolute; left:0; right:0; height:56px; z-index:3; pointer-events:none;
+}
+.time-drum-wrap::before {
+  top:0;
+  background:linear-gradient(to bottom, rgba(237,232,225,.97) 0%, rgba(237,232,225,.5) 60%, rgba(237,232,225,0) 100%);
+}
+.time-drum-wrap::after {
+  bottom:0;
+  background:linear-gradient(to top, rgba(237,232,225,.97) 0%, rgba(237,232,225,.5) 60%, rgba(237,232,225,0) 100%);
+}
+.time-drum-sel {
+  position:absolute; top:50%; transform:translateY(-50%);
+  left:6px; right:6px; height:40px; z-index:4; pointer-events:none;
+  border-top:1.5px solid rgba(122,92,58,.3); border-bottom:1.5px solid rgba(122,92,58,.3);
+  border-radius:5px;
+}
+.time-drum-list { position:absolute; width:100%; top:0; z-index:2; will-change:transform; }
+
+.time-drum-item {
+  height:40px; display:flex; align-items:center; justify-content:center;
+  font-family:'DM Mono',monospace; font-size:11px; font-weight:300;
+  color:var(--text-dim); user-select:none; opacity:.28;
+  transition: font-size .11s, font-weight .11s, opacity .11s, color .11s;
+}
+.time-drum-item.near2 { font-size:14px; opacity:.5; color:var(--text-mid); }
+.time-drum-item.near1 { font-size:19px; font-weight:400; opacity:.72; color:var(--text-mid); }
+.time-drum-item.selected { font-size:28px; font-weight:600; opacity:1; color:var(--text); }
+
+.sub-label { font-size:10px; color:var(--text-dim); font-family:'DM Mono',monospace; letter-spacing:.1em; }
+
+/* ── SAVE ── */
+.save-btn {
+  width:100%; padding:15px; background:var(--accent); color:#fff;
+  border:none; border-radius:14px;
+  font-family:'Noto Sans SC',sans-serif; font-size:16px; font-weight:600;
+  letter-spacing:.08em; cursor:pointer;
+  box-shadow:0 4px 16px rgba(122,92,58,.28); transition:transform .1s, opacity .2s;
+}
+.save-btn:active { transform:scale(.98); opacity:.88; }
+
+/* ── TOAST ── */
+.toast {
+  position:fixed; bottom:88px; left:50%; transform:translateX(-50%) translateY(16px);
+  background:var(--text); color:var(--bg); font-size:13px; padding:10px 22px;
+  border-radius:20px; opacity:0; transition:all .3s; pointer-events:none; z-index:200; white-space:nowrap;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── CHART ── */
+.chart-wrap {
+  background:var(--card); border:1px solid var(--border); border-radius:18px;
+  padding:16px; margin-bottom:14px; box-shadow:0 2px 10px rgba(0,0,0,0.06);
+}
+.chart-title { font-size:11px; letter-spacing:.15em; text-transform:uppercase; color:var(--text-dim); margin-bottom:10px; font-family:'DM Mono',monospace; }
+.chart-legend { display:flex; gap:14px; margin-bottom:10px; flex-wrap:wrap; }
+.leg { display:flex; align-items:center; gap:5px; font-family:'DM Mono',monospace; font-size:10px; color:var(--text-mid); }
+.leg-dot { width:8px; height:8px; border-radius:2px; }
+.range-row { display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+.range-row::-webkit-scrollbar { display:none; }
+.rbtn {
+  background:var(--card2); border:1px solid var(--border); color:var(--text-mid);
+  font-family:'DM Mono',monospace; font-size:11px; padding:5px 12px;
+  border-radius:7px; cursor:pointer; white-space:nowrap; transition:all .18s;
+}
+.rbtn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+.ref-note { font-size:10px; color:var(--text-dim); font-family:'DM Mono',monospace; margin-top:8px; text-align:right; }
+
+/* ── RECORDS ── */
+.record-item {
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  padding:14px 16px; margin-bottom:10px;
+  display:flex; align-items:center; gap:10px; box-shadow:0 1px 4px rgba(0,0,0,0.05);
+}
+.rec-date .md { font-family:'DM Mono',monospace; font-size:13px; font-weight:500; color:var(--text); }
+.rec-date .tm { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-dim); margin-top:2px; }
+.rec-divider { width:1px; height:32px; background:var(--border); flex-shrink:0; }
+.rec-vals { flex:1; }
+.rec-bp { display:flex; align-items:baseline; gap:2px; }
+.rec-bp-num { font-family:'DM Mono',monospace; font-size:17px; font-weight:500; }
+.rec-bp-sep { font-family:'DM Mono',monospace; font-size:14px; color:var(--text-dim); margin:0 2px; }
+.rec-bp-unit { font-size:10px; color:var(--text-dim); margin-left:4px; }
+.rec-pul { font-size:11px; color:var(--pul); font-family:'DM Mono',monospace; margin-top:3px; }
+.rec-status { font-size:11px; padding:3px 8px; border-radius:6px; font-family:'DM Mono',monospace; flex-shrink:0; white-space:nowrap; }
+.rec-del { background:none; border:none; color:var(--text-dim); font-size:18px; cursor:pointer; padding:2px 4px; line-height:1; }
+.rec-del:hover { color:var(--sys); }
+.empty-state { text-align:center; color:var(--text-dim); font-size:13px; padding:60px 20px; line-height:2; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <h1>血压记录</h1>
+      <div class="sub" id="headerDate"></div>
+    </div>
+    <div class="hb">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.593c-5.63-5.539-11-10.297-11-14.402 0-3.791 3.068-5.191 5.281-5.191 1.312 0 4.151.501 5.719 4.457 1.59-3.968 4.464-4.447 5.726-4.447 2.54 0 5.274 1.621 5.274 5.181 0 4.069-5.136 8.625-11 14.402z"/></svg>
+      PULSE
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('input',this)">录入</div>
+  <div class="tab" onclick="showTab('chart',this)">图表</div>
+  <div class="tab" onclick="showTab('records',this)">记录</div>
+</div>
+
+<!-- ── INPUT ── -->
+<div class="section active" id="tab-input">
+  <div class="slabel">血压 &amp; 脉搏</div>
+  <div class="card">
+    <div class="pickers-row">
+      <div class="picker-col">
+        <div class="picker-name sys">高压</div>
+        <div class="drum-wrap" id="dwrap-sys">
+          <div class="drum-selection"></div>
+          <div class="drum-list" id="dlist-sys"></div>
+        </div>
+        <div class="picker-value"><span id="dval-sys">135</span>&nbsp;<span style="font-size:9px;color:var(--text-dim)">mmHg</span></div>
+      </div>
+      <div class="picker-col">
+        <div class="picker-name dia">低压</div>
+        <div class="drum-wrap" id="dwrap-dia">
+          <div class="drum-selection"></div>
+          <div class="drum-list" id="dlist-dia"></div>
+        </div>
+        <div class="picker-value"><span id="dval-dia">90</span>&nbsp;<span style="font-size:9px;color:var(--text-dim)">mmHg</span></div>
+      </div>
+      <div class="picker-col">
+        <div class="picker-name pul">脉搏</div>
+        <div class="drum-wrap" id="dwrap-pul">
+          <div class="drum-selection"></div>
+          <div class="drum-list" id="dlist-pul"></div>
+        </div>
+        <div class="picker-value"><span id="dval-pul">72</span>&nbsp;<span style="font-size:9px;color:var(--text-dim)">bpm</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slabel">测量时间</div>
+
+  <!-- Collapsed clock button -->
+  <div class="time-btn" id="time-btn" onclick="toggleTimePicker()">
+    <div class="time-btn-icon">🕐</div>
+    <div class="time-btn-body">
+      <div class="time-btn-label">测量时间</div>
+      <div class="time-btn-clock" id="live-clock">--:--</div>
+      <div class="time-btn-date" id="live-date">--</div>
+    </div>
+    <div class="time-btn-arrow" id="time-arrow">▼</div>
+  </div>
+
+  <!-- Expanded panel -->
+  <div class="time-panel" id="time-panel">
+    <div class="cal-header">
+      <button class="cal-nav" onclick="calPrev()">&#8249;</button>
+      <div class="cal-title" id="cal-title"></div>
+      <button class="cal-nav" onclick="calNext()">&#8250;</button>
+    </div>
+    <div class="cal-weekdays">
+      <div class="cal-wd">日</div><div class="cal-wd">一</div><div class="cal-wd">二</div>
+      <div class="cal-wd">三</div><div class="cal-wd">四</div><div class="cal-wd">五</div><div class="cal-wd">六</div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <hr class="cal-divider">
+    <div style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;letter-spacing:.12em;margin-bottom:12px;">时刻</div>
+    <div class="time-row">
+      <div class="time-drum-col">
+        <div class="sub-label">时</div>
+        <div class="time-drum-wrap" id="twrap-h">
+          <div class="time-drum-sel"></div>
+          <div class="time-drum-list" id="tlist-h"></div>
+        </div>
+      </div>
+      <div class="time-sep">:</div>
+      <div class="time-drum-col">
+        <div class="sub-label">分</div>
+        <div class="time-drum-wrap" id="twrap-m">
+          <div class="time-drum-sel"></div>
+          <div class="time-drum-list" id="tlist-m"></div>
+        </div>
+      </div>
+    </div>
+    <button class="confirm-time-btn" onclick="confirmTime()">确认时间</button>
+  </div>
+
+  <button class="save-btn" onclick="saveRecord()">保存记录</button>
+</div>
+
+<!-- ── CHART ── -->
+<div class="section" id="tab-chart">
+  <div class="chart-wrap">
+    <div class="chart-title">血压趋势图</div>
+    <div class="range-row">
+      <button class="rbtn active" onclick="setRange(7,this)">7天</button>
+      <button class="rbtn" onclick="setRange(14,this)">14天</button>
+      <button class="rbtn" onclick="setRange(30,this)">30天</button>
+      <button class="rbtn" onclick="setRange(0,this)">全部</button>
+    </div>
+    <div class="chart-legend">
+      <div class="leg"><div class="leg-dot" style="background:var(--sys)"></div>高压</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--dia)"></div>低压</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--pul)"></div>脉搏</div>
+    </div>
+    <canvas id="bp-chart" height="260"></canvas>
+    <div class="ref-note">虚线: 正常上限 高压140 / 低压90</div>
+  </div>
+</div>
+
+<!-- ── RECORDS ── -->
+<div class="section" id="tab-records">
+  <div id="records-list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Storage ────────────────────────────────────────────
+function loadData(){try{return JSON.parse(localStorage.getItem('bp_recs')||'[]');}catch{return[];}}
+function saveData(d){localStorage.setItem('bp_recs',JSON.stringify(d));}
+
+// ─── Generic drum factory ────────────────────────────────
+// itemH: height of each cell in px
+// itemClass: CSS class name for items
+// paddingRows: ghost rows top/bottom
+function makeDrum(wrapEl, listEl, items, initVal, displayEl, itemH, itemClass, padRows) {
+  listEl.innerHTML='';
+  for(let i=0;i<padRows;i++){const e=document.createElement('div');e.className=itemClass;listEl.appendChild(e);}
+  items.forEach(v=>{
+    const e=document.createElement('div');e.className=itemClass;
+    e.textContent=String(v).padStart(2,'0');listEl.appendChild(e);
+  });
+  for(let i=0;i<padRows;i++){const e=document.createElement('div');e.className=itemClass;listEl.appendChild(e);}
+
+  const allEls=[...listEl.querySelectorAll('.'+itemClass)];
+  const s={current:initVal,trans:0,dragging:false,startY:0,lastY:0,lastT:0,vel:0,prevTrans:0,raf:0};
+  const clamp=i=>Math.max(0,Math.min(items.length-1,i));
+  const wc=()=>wrapEl.clientHeight/2-itemH/2;
+  const transForIdx=idx=>wc()-(padRows+idx)*itemH;
+  const idxOfVal=v=>{const i=items.indexOf(v);return i>=0?i:0;};
+
+  function refreshClasses(){
+    const centIdx=Math.round((wc()-s.trans-itemH*padRows-itemH/2)/itemH);
+    allEls.forEach((el,i)=>{
+      const d=Math.abs((i-padRows)-centIdx);
+      el.classList.remove('selected','near1','near2');
+      if(d===0)el.classList.add('selected');
+      else if(d===1)el.classList.add('near1');
+      else if(d===2)el.classList.add('near2');
+    });
+  }
+
+  function snap(t,anim){
+    const centIdx=Math.round((wc()-t-itemH*padRows-itemH/2)/itemH);
+    const idx=clamp(centIdx);
+    s.current=items[idx];
+    s.trans=transForIdx(idx);
+    listEl.style.transition=anim?'transform .22s cubic-bezier(0.25,1,0.5,1)':'none';
+    listEl.style.transform=`translateY(${s.trans}px)`;
+    requestAnimationFrame(refreshClasses);
+    if(displayEl)displayEl.textContent=s.current;
+    listEl.dispatchEvent(new CustomEvent('change',{bubbles:true}));
+  }
+
+  function start(y){cancelAnimationFrame(s.raf);s.dragging=true;s.startY=s.lastY=y;s.lastT=Date.now();s.vel=0;s.prevTrans=s.trans;listEl.style.transition='none';}
+  function move(y){if(!s.dragging)return;const now=Date.now(),dt=Math.max(1,now-s.lastT);s.vel=(y-s.lastY)/dt*16;s.lastY=y;s.lastT=now;s.trans=s.prevTrans+(y-s.startY);listEl.style.transform=`translateY(${s.trans}px)`;requestAnimationFrame(refreshClasses);}
+  function end(){if(!s.dragging)return;s.dragging=false;let v=s.vel,p=s.trans,fr=0.86;const mn=transForIdx(items.length-1),mx=transForIdx(0);function mo(){if(Math.abs(v)<0.4){snap(p,true);return;}p+=v;v*=fr;if(p>mx){p=mx;v=0;}if(p<mn){p=mn;v=0;}s.trans=p;listEl.style.transform=`translateY(${p}px)`;requestAnimationFrame(refreshClasses);s.raf=requestAnimationFrame(mo);}s.raf=requestAnimationFrame(mo);}
+
+  wrapEl.addEventListener('touchstart',e=>{e.preventDefault();start(e.touches[0].clientY);},{passive:false});
+  wrapEl.addEventListener('touchmove', e=>{e.preventDefault();move(e.touches[0].clientY);},{passive:false});
+  wrapEl.addEventListener('touchend',  end);
+  wrapEl.addEventListener('touchcancel',end);
+  wrapEl.addEventListener('mousedown', e=>start(e.clientY));
+  window.addEventListener('mousemove', e=>{if(s.dragging)move(e.clientY);});
+  window.addEventListener('mouseup',   ()=>{if(s.dragging)end();});
+  let wacc=0;
+  wrapEl.addEventListener('wheel',e=>{e.preventDefault();cancelAnimationFrame(s.raf);wacc+=e.deltaY;const steps=Math.round(wacc/24);if(steps){wacc-=steps*24;const ni=clamp(idxOfVal(s.current)+steps);s.current=items[ni];s.trans=transForIdx(ni);snap(s.trans,true);}},{passive:false});
+
+  // init after first paint so wrapEl.clientHeight is set
+  requestAnimationFrame(()=>{
+    s.trans=transForIdx(idxOfVal(initVal));
+    listEl.style.transition='none';
+    listEl.style.transform=`translateY(${s.trans}px)`;
+    requestAnimationFrame(refreshClasses);
+    if(displayEl)displayEl.textContent=initVal;
+  });
+  return s;
+}
+
+// ─── BP drums ──────────────────────────────────────────
+const sysItems=[...Array(151)].map((_,i)=>i+70);
+const diaItems=[...Array(111)].map((_,i)=>i+40);
+const pulItems=[...Array(161)].map((_,i)=>i+40);
+
+const drumSys=makeDrum(document.getElementById('dwrap-sys'),document.getElementById('dlist-sys'),sysItems,135,document.getElementById('dval-sys'),44,'drum-item',2);
+const drumDia=makeDrum(document.getElementById('dwrap-dia'),document.getElementById('dlist-dia'),diaItems,90, document.getElementById('dval-dia'),44,'drum-item',2);
+const drumPul=makeDrum(document.getElementById('dwrap-pul'),document.getElementById('dlist-pul'),pulItems,72, document.getElementById('dval-pul'),44,'drum-item',2);
+
+// ─── Time drums (lazy init after panel opens) ───────────
+const hours=[...Array(24)].map((_,i)=>i);
+const minutes=[...Array(60)].map((_,i)=>i);
+const nowT=new Date();
+let drumH=null, drumM=null;
+function ensureTimeDrums(){
+  if(drumH&&drumM)return;
+  drumH=makeDrum(document.getElementById('twrap-h'),document.getElementById('tlist-h'),hours,  nowT.getHours(),  null,40,'time-drum-item',2);
+  drumM=makeDrum(document.getElementById('twrap-m'),document.getElementById('tlist-m'),minutes,nowT.getMinutes(),null,40,'time-drum-item',2);
+}
+
+// ─── Live clock ────────────────────────────────────────
+const _days=['日','一','二','三','四','五','六'];
+function updateLiveClock(){
+  const n=new Date();
+  const hh=String(n.getHours()).padStart(2,'0');
+  const mm=String(n.getMinutes()).padStart(2,'0');
+  document.getElementById('live-clock').textContent=hh+':'+mm;
+  document.getElementById('live-date').textContent=
+    n.toLocaleDateString('zh-CN',{month:'long',day:'numeric'})+'  周'+_days[n.getDay()];
+}
+updateLiveClock();
+setInterval(updateLiveClock,15000);
+
+// ─── Toggle time panel ─────────────────────────────────
+let timePanelOpen=false;
+function toggleTimePicker(){
+  timePanelOpen=!timePanelOpen;
+  document.getElementById('time-panel').classList.toggle('open',timePanelOpen);
+  document.getElementById('time-arrow').classList.toggle('open',timePanelOpen);
+  if(timePanelOpen){
+    renderCal();
+    setTimeout(ensureTimeDrums,360);
+  }
+}
+
+function confirmTime(){
+  if(!drumH||!drumM)return;
+  const h=String(drumH.current).padStart(2,'0');
+  const m=String(drumM.current).padStart(2,'0');
+  document.getElementById('live-clock').textContent=h+':'+m;
+  const [y,mo,day]=selectedDate.split('-');
+  const d=new Date(+y,+mo-1,+day);
+  document.getElementById('live-date').textContent=mo+'月'+day+'日  周'+_days[d.getDay()];
+  toggleTimePicker();
+  showToast('✓ 时间已设置');
+}
+
+// ─── Calendar ──────────────────────────────────────────
+const todayD=new Date();
+let selectedDate=todayD.getFullYear()+'-'+String(todayD.getMonth()+1).padStart(2,'0')+'-'+String(todayD.getDate()).padStart(2,'0');
+let calYear=todayD.getFullYear(), calMonth=todayD.getMonth();
+
+function dateKey(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+
+function renderCal(){
+  const grid=document.getElementById('cal-grid');
+  const title=document.getElementById('cal-title');
+  title.textContent=calYear+'年 '+(calMonth+1)+'月';
+  grid.innerHTML='';
+  const records=loadData();
+  const recordDays=new Set(records.map(r=>r.time.slice(0,10)));
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const prevDays=new Date(calYear,calMonth,0).getDate();
+  const todayKey=dateKey(todayD.getFullYear(),todayD.getMonth(),todayD.getDate());
+  for(let i=firstDay-1;i>=0;i--){const el=document.createElement('div');el.className='cal-day other-month';el.textContent=prevDays-i;grid.appendChild(el);}
+  for(let d=1;d<=daysInMonth;d++){
+    const key=dateKey(calYear,calMonth,d);
+    const el=document.createElement('div');el.className='cal-day';el.textContent=d;
+    if(key===todayKey)el.classList.add('today');
+    if(key===selectedDate)el.classList.add('selected');
+    if(recordDays.has(key))el.classList.add('has-record');
+    el.onclick=()=>{selectedDate=key;renderCal();};
+    grid.appendChild(el);
+  }
+  const total=firstDay+daysInMonth,remaining=total%7===0?0:7-total%7;
+  for(let d=1;d<=remaining;d++){const el=document.createElement('div');el.className='cal-day other-month';el.textContent=d;grid.appendChild(el);}
+}
+
+function calPrev(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCal();}
+function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCal();}
+
+// ─── Header ────────────────────────────────────────────
+document.getElementById('headerDate').textContent=
+  new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+
+// ─── Status ────────────────────────────────────────────
+function bpStatus(s,d){
+  if(s<120&&d<80)return{label:'理想',color:'#2a8a4a'};
+  if(s<130&&d<85)return{label:'正常',color:'#2a8a4a'};
+  if(s<140&&d<90)return{label:'偏高',color:'#b07a10'};
+  if(s<160&&d<100)return{label:'一级高血压',color:'#c05a20'};
+  return{label:'危险',color:'#c94040'};
+}
+
+// ─── Save ──────────────────────────────────────────────
+function saveRecord(){
+  // Read time from button display (which shows the confirmed or live time)
+  const clockStr=document.getElementById('live-clock').textContent;
+  const [h,m]=clockStr.split(':');
+  const hh=h.padStart(2,'0'), mm=(m||'00').padStart(2,'0');
+  const timeStr=`${selectedDate}T${hh}:${mm}`;
+  const r={sys:drumSys.current,dia:drumDia.current,pul:drumPul.current,time:timeStr,id:Date.now()};
+  const recs=loadData();recs.push(r);
+  recs.sort((a,b)=>new Date(a.time)-new Date(b.time));
+  saveData(recs);showToast('✓ 已保存');updateLiveClock();
+}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+
+// ─── Tabs ──────────────────────────────────────────────
+function showTab(name,el){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  el.classList.add('active');
+  if(name==='chart')renderChart();
+  if(name==='records')renderRecords();
+}
+
+// ─── Chart ─────────────────────────────────────────────
+let chartRange=7;
+function setRange(d,btn){chartRange=d;document.querySelectorAll('.rbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderChart();}
+
+function renderChart(){
+  const canvas=document.getElementById('bp-chart');
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth-32,H=260;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+
+  let records=loadData();
+  if(chartRange>0){const cut=new Date();cut.setDate(cut.getDate()-chartRange);records=records.filter(r=>new Date(r.time)>=cut);}
+  if(!records.length){ctx.fillStyle='#b5aca3';ctx.font='13px "DM Mono"';ctx.textAlign='center';ctx.fillText('暂无数据',W/2,H/2);return;}
+
+  const byDay={};records.forEach(r=>{byDay[r.time.slice(0,10)]=r;});
+  const data=Object.keys(byDay).sort().map(d=>byDay[d]);
+  const PL=44,PR=14,PT=24,PB=38,cW=W-PL-PR,cH=H-PT-PB;
+  const allV=data.flatMap(d=>[d.sys,d.dia,d.pul]);
+  const minV=Math.max(40,Math.min(...allV)-12),maxV=Math.min(220,Math.max(...allV)+12);
+  const toX=i=>data.length===1?PL+cW/2:PL+(i/(data.length-1))*cW;
+  const toY=v=>PT+(1-(v-minV)/(maxV-minV))*cH;
+
+  for(let v=Math.ceil(minV/10)*10;v<=maxV;v+=10){
+    const y=toY(v);
+    ctx.strokeStyle=v%20===0?'#ddd5c8':'#e8e2da';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(PL,y);ctx.lineTo(W-PR,y);ctx.stroke();
+    ctx.fillStyle='#b5aca3';ctx.font=`9px 'DM Mono'`;ctx.textAlign='right';
+    ctx.fillText(v,PL-5,y+3.5);
+  }
+  [[140,'rgba(201,64,64,.28)'],[90,'rgba(42,106,181,.28)']].forEach(([v,c])=>{
+    if(v<minV||v>maxV)return;
+    ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.setLineDash([5,5]);
+    ctx.beginPath();ctx.moveTo(PL,toY(v));ctx.lineTo(W-PR,toY(v));ctx.stroke();
+    ctx.setLineDash([]);
+  });
+  if(data.length>1){ctx.strokeStyle='rgba(42,138,74,.45)';ctx.lineWidth=1.5;ctx.beginPath();data.forEach((d,i)=>i===0?ctx.moveTo(toX(i),toY(d.pul)):ctx.lineTo(toX(i),toY(d.pul)));ctx.stroke();}
+  data.forEach((d,i)=>{ctx.fillStyle='#2a8a4a';ctx.beginPath();ctx.arc(toX(i),toY(d.pul),2.5,0,Math.PI*2);ctx.fill();});
+
+  const bW=Math.max(7,Math.min(22,cW/data.length*0.55));
+  data.forEach((d,i)=>{
+    const x=toX(i),yT=toY(d.sys),yB=toY(d.dia);
+    ctx.strokeStyle='rgba(180,168,155,.5)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x,yT-3);ctx.lineTo(x,yB+3);ctx.stroke();
+    const g=ctx.createLinearGradient(0,yT,0,yB);
+    g.addColorStop(0,'#c94040');g.addColorStop(1,'#2a6ab5');
+    ctx.fillStyle=g;ctx.beginPath();
+    if(ctx.roundRect)ctx.roundRect(x-bW/2,yT,bW,yB-yT,3);
+    else ctx.rect(x-bW/2,yT,bW,yB-yT);
+    ctx.fill();
+    ctx.textAlign='center';ctx.font=`bold 9px 'DM Mono'`;
+    ctx.fillStyle='#c94040';ctx.fillText(d.sys,x,yT-6);
+    ctx.fillStyle='#2a6ab5';ctx.fillText(d.dia,x,yB+14);
+  });
+  ctx.fillStyle='#b5aca3';ctx.font=`9px 'DM Mono'`;ctx.textAlign='center';
+  const step=Math.max(1,Math.ceil(data.length/Math.floor(cW/34)));
+  data.forEach((d,i)=>{if(i%step===0||i===data.length-1)ctx.fillText(d.time.slice(5,10),toX(i),H-PB+14);});
+}
+
+// ─── Records ───────────────────────────────────────────
+function renderRecords(){
+  const el=document.getElementById('records-list');
+  const records=loadData().slice().reverse();
+  if(!records.length){el.innerHTML='<div class="empty-state">暂无记录<br>请在「录入」页面添加数据</div>';return;}
+  el.innerHTML=records.map(r=>{
+    const st=bpStatus(r.sys,r.dia);
+    const dt=new Date(r.time);
+    const md=dt.toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'});
+    const tm=dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+    return`<div class="record-item">
+      <div class="rec-date"><div class="md">${md}</div><div class="tm">${tm}</div></div>
+      <div class="rec-divider"></div>
+      <div class="rec-vals">
+        <div class="rec-bp">
+          <span class="rec-bp-num" style="color:var(--sys)">${r.sys}</span>
+          <span class="rec-bp-sep">/</span>
+          <span class="rec-bp-num" style="color:var(--dia)">${r.dia}</span>
+          <span class="rec-bp-unit">mmHg</span>
+        </div>
+        <div class="rec-pul">♥ ${r.pul} bpm</div>
+      </div>
+      <div class="rec-status" style="background:${st.color}18;color:${st.color};border:1px solid ${st.color}30">${st.label}</div>
+      <button class="rec-del" onclick="deleteRecord(${r.id})">×</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteRecord(id){
+  if(!confirm('确定删除？'))return;
+  saveData(loadData().filter(r=>r.id!==id));
+  renderRecords();showToast('已删除');
+}
+</script>
+</body>
+</html>
