@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<title>月子护理记录</title>
+<style>
+  :root{
+    --bg: #FBF7F2;
+    --surface: #FFFFFF;
+    --surface-2: #F4EEE6;
+    --rose: #C97B72;
+    --rose-dark: #9C5850;
+    --sage: #8DA180;
+    --sage-dark: #5F7253;
+    --ink: #3A332E;
+    --ink-soft: #756B62;
+    --line: #E7DED2;
+    --danger: #C0463B;
+    --danger-bg: #FBEAE7;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    height: 100%;
+  }
+  body{
+    display:flex; flex-direction:column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .header{
+    padding: calc(env(safe-area-inset-top) + 14px) 20px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+    position: sticky; top:0; z-index: 10;
+  }
+  .header h1{ font-size: 19px; font-weight: 700; margin:0; letter-spacing: 0.3px; }
+  .header .sub{ font-size: 12px; color: var(--ink-soft); margin-top:2px; }
+  .date-nav{ display:flex; align-items:center; gap:8px; }
+  .date-nav button{
+    width:32px; height:32px; border-radius:50%; border:1px solid var(--line);
+    background: var(--surface-2); font-size:16px; color: var(--ink); display:flex;
+    align-items:center; justify-content:center;
+  }
+  .date-nav .date-label{ font-size:13px; font-weight:600; min-width: 78px; text-align:center; }
+
+  main{ flex:1; overflow-y:auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+
+  .card{
+    background: var(--surface); border-radius: var(--radius);
+    border: 1px solid var(--line); padding: 16px; margin-bottom: 14px;
+  }
+  .card h2{ font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .card h2 .dot{ width:8px; height:8px; border-radius:50%; background: var(--rose); }
+
+  .summary-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:10px; }
+  .summary-grid.wide{ grid-template-columns: repeat(3,1fr); }
+  .stat{ background: var(--surface-2); border-radius: var(--radius-sm); padding:10px 12px; }
+  .stat .num{ font-size:20px; font-weight:700; color: var(--rose-dark); }
+  .stat .label{ font-size:11.5px; color: var(--ink-soft); margin-top:2px; }
+
+  form.entry{ display:flex; flex-direction:column; gap:10px; }
+  .row{ display:flex; gap:8px; }
+  .row > *{ flex:1; min-width:0; }
+  label{ font-size:12px; color: var(--ink-soft); display:block; margin-bottom:4px; }
+  input, select, textarea{
+    width:100%; padding:9px 10px; border-radius: var(--radius-sm); border:1px solid var(--line);
+    background: var(--surface-2); font-size:15px; color: var(--ink); font-family: inherit;
+  }
+  textarea{ resize: none; min-height: 38px; }
+  .seg{ display:flex; border-radius: var(--radius-sm); overflow:hidden; border:1px solid var(--line); }
+  .seg button{
+    flex:1; padding:9px 4px; background: var(--surface-2); border:none; font-size:13px; color: var(--ink-soft);
+    border-right:1px solid var(--line);
+  }
+  .seg button:last-child{ border-right:none; }
+  .seg button.active{ background: var(--rose); color:#fff; font-weight:600; }
+
+  .submit-btn{
+    margin-top:4px; background: var(--rose); color:#fff; border:none; border-radius: var(--radius-sm);
+    padding: 11px; font-size:15px; font-weight:600;
+  }
+  .submit-btn:active{ background: var(--rose-dark); }
+
+  .entry-list{ margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .entry-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background: var(--surface-2); border-radius: var(--radius-sm); padding:10px 12px;
+  }
+  .entry-item .time{ font-weight:700; font-size:14px; min-width:46px; color: var(--rose-dark); }
+  .entry-item .detail{ flex:1; font-size:13px; color: var(--ink); }
+  .entry-item .detail .meta{ color: var(--ink-soft); font-size:12px; }
+  .entry-item .del{ background:none; border:none; color:#B7AFA4; font-size:18px; padding:2px 4px; }
+  .empty-hint{ text-align:center; color: var(--ink-soft); font-size:13px; padding: 16px 0; }
+
+  .alert{
+    background: var(--danger-bg); color: var(--danger); border-radius: var(--radius-sm);
+    padding:10px 12px; font-size:12.5px; margin-bottom:12px; line-height:1.5;
+  }
+
+  nav.tabbar{
+    position: fixed; bottom:0; left:0; right:0;
+    background: rgba(255,255,255,0.96); backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    display:flex; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  nav.tabbar button{
+    flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:2px;
+    padding:6px 1px; color: var(--ink-soft); font-size:9.5px; min-width:0;
+  }
+  nav.tabbar button .icon{ font-size:17px; line-height:1; }
+  nav.tabbar button.active{ color: var(--rose-dark); font-weight:700; }
+
+  .task-card{ background: var(--surface); border-radius: var(--radius); border:1px solid var(--line); padding:14px; margin-bottom:12px; }
+  .task-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .task-name{ display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:600; }
+  .task-name .ic{ font-size:18px; }
+  .task-progress{ font-size:12px; color: var(--ink-soft); }
+  .task-progress.done{ color: var(--sage-dark); font-weight:600; }
+  .check-btn{
+    border:1px solid var(--rose); color: var(--rose-dark); background: #FBEFEC; border-radius: var(--radius-sm);
+    padding:7px 12px; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .check-btn:active{ background: var(--rose); color:#fff; }
+  .task-mini-form{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+  .task-times{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .time-pill{ display:flex; align-items:center; gap:4px; background: var(--surface-2); border-radius:20px; padding:5px 10px 5px 12px; font-size:12px; }
+  .time-pill .x{ color:#B7AFA4; font-size:14px; padding-left:2px; }
+
+  .hidden{ display:none !important; }
+  .loading{ text-align:center; color: var(--ink-soft); font-size:13px; padding: 30px 0; }
+  ::-webkit-scrollbar{ display:none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>月子护理记录</h1>
+    <div class="sub" id="headerSub">小贝拉 · 护理日志</div>
+  </div>
+  <div class="date-nav">
+    <button id="prevDay">‹</button>
+    <div class="date-label" id="dateLabel">今天</div>
+    <button id="nextDay">›</button>
+  </div>
+</div>
+
+<main id="main">
+  <div class="loading">加载中...</div>
+</main>
+
+<nav class="tabbar">
+  <button data-tab="overview" class="active"><span class="icon">&#9737;</span>总览</button>
+  <button data-tab="duty"><span class="icon">&#9989;</span>打卡</button>
+  <button data-tab="feeding"><span class="icon">&#127860;</span>喂养</button>
+  <button data-tab="diaper"><span class="icon">&#128167;</span>如厕</button>
+  <button data-tab="sleep"><span class="icon">&#9728;</span>睡眠</button>
+  <button data-tab="vitals"><span class="icon">&#127777;</span>体温</button>
+  <button data-tab="mom"><span class="icon">&#10084;</span>妈妈</button>
+</nav>
+
+<script>
+(function(){
+  const todayStr = () => {
+    const d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  };
+  const nowTime = () => {
+    const d = new Date();
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  };
+  let currentDate = todayStr();
+  let currentTab = 'overview';
+  let cache = {}; // key -> array
+
+  function fmtDateLabel(dstr){
+    const t = todayStr();
+    const yest = new Date(); yest.setDate(yest.getDate()-1);
+    const yestStr = yest.getFullYear()+'-'+String(yest.getMonth()+1).padStart(2,'0')+'-'+String(yest.getDate()).padStart(2,'0');
+    if(dstr === t) return '今天';
+    if(dstr === yestStr) return '昨天';
+    const parts = dstr.split('-');
+    return parts[1]+'月'+parts[2]+'日';
+  }
+
+  function keyFor(cat, dstr){ return cat+':'+dstr; }
+
+  async function loadEntries(cat, dstr){
+    const k = keyFor(cat, dstr);
+    if(cache[k]) return cache[k];
+    try{
+      const res = await window.storage.get(k, false);
+      const arr = res && res.value ? JSON.parse(res.value) : [];
+      cache[k] = arr;
+      return arr;
+    }catch(e){
+      cache[k] = [];
+      return [];
+    }
+  }
+
+  async function saveEntries(cat, dstr, arr){
+    arr.sort((a,b)=> a.time.localeCompare(b.time));
+    cache[keyFor(cat,dstr)] = arr;
+    try{
+      await window.storage.set(keyFor(cat,dstr), JSON.stringify(arr), false);
+    }catch(e){ console.error('save failed', e); }
+  }
+
+  async function addEntry(cat, dstr, entry){
+    const arr = await loadEntries(cat, dstr);
+    entry.id = Date.now()+Math.random().toString(36).slice(2,7);
+    arr.push(entry);
+    await saveEntries(cat, dstr, arr);
+  }
+
+  async function deleteEntry(cat, dstr, id){
+    let arr = await loadEntries(cat, dstr);
+    arr = arr.filter(e=>e.id!==id);
+    await saveEntries(cat, dstr, arr);
+  }
+
+  const DUTY_TASKS = [
+    {id:'air', icon:'&#128168;', label:'房间空气消毒', target:2, extra:[{key:'method', label:'方式', type:'seg', options:['开窗通风','紫外线','艾草/其他']}]},
+    {id:'sterilize', icon:'&#129368;', label:'奶具/玩具消毒', target:2, extra:null},
+    {id:'feedAssist', icon:'&#127860;', label:'喂奶看护/指导', target:0, extra:null},
+    {id:'bath', icon:'&#128705;', label:'宝宝洗澡', target:1, extra:[
+        {key:'waterTemp', label:'水温(℃)', type:'number', placeholder:'例如 38'},
+        {key:'roomTemp', label:'室温(℃)', type:'number', placeholder:'例如 26'}
+      ]},
+    {id:'touch', icon:'&#129304;', label:'抚触', target:1, extra:[{key:'duration', label:'时长(分钟)', type:'number', placeholder:'例如 15'}]},
+    {id:'flashcard', icon:'&#127912;', label:'黑白卡/早教互动', target:1, extra:[{key:'duration', label:'时长(分钟)', type:'number', placeholder:'例如 5'}]},
+    {id:'roomEnv', icon:'&#127777;', label:'房间温湿度检查', target:2, extra:[
+        {key:'roomTemp', label:'室温(℃)', type:'number', placeholder:'例如 25'},
+        {key:'humidity', label:'湿度(%)', type:'number', placeholder:'例如 55'}
+      ]},
+    {id:'laundry', icon:'&#129534;', label:'婴儿衣物清洗', target:1, extra:null},
+    {id:'momMeal', icon:'&#127858;', label:'月子餐准备', target:3, extra:null},
+    {id:'momCare', icon:'&#128150;', label:'产妇沟通/情绪关怀', target:1, extra:null},
+  ];
+
+  const CONFIG = {
+    feeding: {
+      title:'喂养记录', dot:'#C97B72',
+      fields: [
+        {key:'method', label:'方式', type:'seg', options:['母乳','配方奶','混合']},
+        {key:'side', label:'侧别(母乳)', type:'seg', options:['左','右','双侧','-']},
+        {key:'amount', label:'时长(分钟)/奶量(ml)', type:'number', placeholder:'例如 15'},
+        {key:'status', label:'状态', type:'seg', options:['顺利','吐奶','拒奶']},
+      ],
+      render: (e)=> `${e.method||''} ${e.side&&e.side!=='-'?'· '+e.side:''} ${e.amount?'· '+e.amount:''}`,
+      meta: (e)=> e.status||'',
+      alert: '提示：每天喂养8-12次为正常；连续拒奶或单次<5分钟且体重不增需及时就医。'
+    },
+    diaper: {
+      title:'大小便记录', dot:'#8DA180',
+      fields:[
+        {key:'type', label:'类型', type:'seg', options:['小便','大便']},
+        {key:'color', label:'颜色', type:'text', placeholder:'例如 黄色 / 墨绿色'},
+        {key:'texture', label:'性状', type:'seg', options:['稀','糊','成形','-']},
+      ],
+      render: (e)=> `${e.type} ${e.color?'· '+e.color:''}`,
+      meta: (e)=> e.texture && e.texture!=='-' ? e.texture : '',
+      alert: '提示：每天湿尿布≥6片；大便发白、血便、24小时无尿需立即就医。'
+    },
+    sleep: {
+      title:'睡眠记录', dot:'#7F77DD',
+      fields:[
+        {key:'event', label:'类型', type:'seg', options:['入睡','醒来']},
+        {key:'wakeType', label:'醒来方式', type:'seg', options:['自然醒','哭醒','-']},
+      ],
+      render: (e)=> `${e.event}`,
+      meta: (e)=> e.wakeType && e.wakeType!=='-' ? e.wakeType : '',
+      alert: '提示：记录每次入睡/醒来，便于统计全天总睡眠时长。'
+    },
+    vitals: {
+      title:'体温/黄疸记录', dot:'#BA7517',
+      fields:[
+        {key:'temp', label:'体温(℃)', type:'number', placeholder:'例如 36.8'},
+        {key:'jaundice', label:'黄疸范围', type:'seg', options:['无','面部','躯干','四肢/手脚心']},
+        {key:'jaundiceValue', label:'经皮黄疸值(mg/dL)', type:'number', placeholder:'例如 12.5'},
+        {key:'spirit', label:'精神状态', type:'seg', options:['好','嗜睡','烦躁']},
+      ],
+      render: (e)=> `${e.temp?e.temp+'℃':''} ${e.jaundice&&e.jaundice!=='无'?'· 黄疸:'+e.jaundice:''}${e.jaundiceValue?' · 数值:'+e.jaundiceValue:''}`,
+      meta: (e)=> e.spirit||'',
+      alert: '提示：正常体温36.5-37.5℃；经皮胆红素值随日龄升高需关注是否超过对应日龄的干预阈值，黄疸蔓延至四肢/手脚心或伴嗜睡拒奶需及时就医。'
+    },
+    mom: {
+      title:'妈妈恢复记录', dot:'#D4537E',
+      fields:[
+        {key:'temp', label:'体温(℃)', type:'number', placeholder:'例如 36.8'},
+        {key:'wound', label:'伤口情况', type:'seg', options:['干燥', '渗液', '红肿']},
+        {key:'lochia', label:'恶露', type:'text', placeholder:'颜色/量，如：淡红 中量'},
+        {key:'breast', label:'乳房情况', type:'seg', options:['通畅', '胀痛', '红肿']},
+        {key:'mood', label:'情绪状态', type:'seg', options:['平稳', '低落', '焦虑']},
+        {key:'note', label:'备注', type:'text', placeholder:'选填'},
+      ],
+      render: (e)=> `伤口:${e.wound||'-'} · 恶露:${e.lochia||'-'}`,
+      meta: (e)=> `乳房:${e.breast||'-'} · 情绪:${e.mood||'-'}${e.note?(' · '+e.note):''}`,
+      alert: '提示：发热>38℃、伤口渗脓、恶露突增变红有异味、乳房红肿热痛伴发热，需及时联系医生。'
+    }
+  };
+
+  const main = document.getElementById('main');
+  const dateLabel = document.getElementById('dateLabel');
+
+  function buildFieldHTML(f){
+    if(f.type==='seg'){
+      const btns = f.options.map((o,i)=>`<button type="button" data-field="${f.key}" data-val="${o}" class="${i===0?'active':''}">${o}</button>`).join('');
+      return `<div><label>${f.label}</label><div class="seg" data-segfor="${f.key}">${btns}</div><input type="hidden" name="${f.key}" value="${f.options[0]}"></div>`;
+    }
+    if(f.type==='number'){
+      return `<div><label>${f.label}</label><input type="number" inputmode="decimal" step="0.1" name="${f.key}" placeholder="${f.placeholder||''}"></div>`;
+    }
+    return `<div><label>${f.label}</label><input type="text" name="${f.key}" placeholder="${f.placeholder||''}"></div>`;
+  }
+
+  function attachSegHandlers(container){
+    container.querySelectorAll('.seg').forEach(seg=>{
+      seg.querySelectorAll('button').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          seg.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          const hidden = seg.parentElement.querySelector('input[type=hidden]');
+          if(hidden) hidden.value = btn.dataset.val;
+        });
+      });
+    });
+  }
+
+  async function renderCategoryTab(cat){
+    const cfg = CONFIG[cat];
+    const entries = await loadEntries(cat, currentDate);
+    const fieldsHTML = cfg.fields.map(buildFieldHTML).join('');
+    main.innerHTML = `
+      <div class="alert">${cfg.alert}</div>
+      <div class="card">
+        <h2><span class="dot" style="background:${cfg.dot}"></span>新增一条记录</h2>
+        <form class="entry" id="entryForm">
+          <div><label>时间</label><input type="time" name="time" value="${nowTime()}" required></div>
+          ${fieldsHTML}
+          <button type="submit" class="submit-btn">保存记录</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2><span class="dot" style="background:${cfg.dot}"></span>${fmtDateLabel(currentDate)}记录（共${entries.length}条）</h2>
+        <div class="entry-list" id="entryList"></div>
+      </div>
+    `;
+    attachSegHandlers(main);
+    renderEntryList(cat, entries);
+    document.getElementById('entryForm').addEventListener('submit', async (ev)=>{
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const obj = {};
+      fd.forEach((v,k)=>obj[k]=v);
+      await addEntry(cat, currentDate, obj);
+      renderCategoryTab(cat);
+    });
+  }
+
+  function renderEntryList(cat, entries){
+    const cfg = CONFIG[cat];
+    const list = document.getElementById('entryList');
+    if(!entries.length){
+      list.innerHTML = `<div class="empty-hint">还没有记录，添加第一条吧</div>`;
+      return;
+    }
+    list.innerHTML = entries.slice().reverse().map(e=>`
+      <div class="entry-item" data-id="${e.id}">
+        <div class="time">${e.time}</div>
+        <div class="detail">${cfg.render(e)}<div class="meta">${cfg.meta(e)}</div></div>
+        <button class="del" data-id="${e.id}">&times;</button>
+      </div>
+    `).join('');
+    list.querySelectorAll('.del').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        await deleteEntry(cat, currentDate, btn.dataset.id);
+        renderCategoryTab(cat);
+      });
+    });
+  }
+
+  function buildExtraFieldHTML(f, taskId){
+    if(f.type==='seg'){
+      const btns = f.options.map((o,i)=>`<button type="button" data-val="${o}" class="${i===0?'active':''}">${o}</button>`).join('');
+      return `<div><label>${f.label}</label><div class="seg" data-segfor="${f.key}_${taskId}">${btns}</div><input type="hidden" name="${f.key}" value="${f.options[0]}"></div>`;
+    }
+    return `<div><label>${f.label}</label><input type="number" inputmode="decimal" step="0.1" name="${f.key}" placeholder="${f.placeholder||''}"></div>`;
+  }
+
+  let openTaskForm = null;
+
+  async function renderDuty(){
+    const entries = await loadEntries('duty', currentDate);
+    const cardsHTML = DUTY_TASKS.map(task=>{
+      const taskEntries = entries.filter(e=>e.taskId===task.id).sort((a,b)=>a.time.localeCompare(b.time));
+      const count = taskEntries.length;
+      const targetText = task.target>0 ? `${count}/${task.target}次` : `今天已打卡 ${count} 次`;
+      const isDone = task.target>0 && count>=task.target;
+      const extraHTML = task.extra ? task.extra.map(f=>buildExtraFieldHTML(f, task.id)).join('') : '';
+      const pillsHTML = taskEntries.length ? `<div class="task-times">${taskEntries.map(e=>{
+        let extraTxt = '';
+        if(task.extra){
+          extraTxt = task.extra.map(f=> e[f.key] ? (f.label.replace(/\(.*\)/,'')+':'+e[f.key]) : '').filter(Boolean).join(' ');
+        }
+        const loggedTxt = e.loggedAt && e.loggedAt !== e.time ? ` <span style="color:#B7AFA4;">(记录于${e.loggedAt})</span>` : '';
+        return `<span class="time-pill">${e.time}${extraTxt? ' · '+extraTxt:''}${loggedTxt}<span class="x" data-del="${task.id}|${e.id}">&times;</span></span>`;
+      }).join('')}</div>` : `<div class="empty-hint" style="padding:8px 0;">今天还没有打卡</div>`;
+      return `
+        <div class="task-card" data-taskcard="${task.id}">
+          <div class="task-head">
+            <div class="task-name"><span class="ic">${task.icon}</span>${task.label}</div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="task-progress ${isDone?'done':''}">${targetText}</span>
+              <button type="button" class="check-btn" data-open="${task.id}">+ 打卡</button>
+            </div>
+          </div>
+          <div class="task-mini-form hidden" data-formfor="${task.id}">
+            <div><label>执行时间</label><input type="time" name="time" value="${nowTime()}"></div>
+            ${extraHTML}
+            <button type="button" class="submit-btn" data-save="${task.id}">保存打卡</button>
+            <div style="font-size:11px; color: var(--ink-soft); text-align:center;">提交时系统会自动附加记录时间，便于核对是否补打卡</div>
+          </div>
+          ${pillsHTML}
+        </div>
+      `;
+    }).join('');
+
+    main.innerHTML = `
+      <div class="alert">月嫂每日打卡：点击对应项目的"+ 打卡"按钮记录执行时间，洗澡/抚触/早教等可附加记录水温、室温、时长等细节，便于您每天核对。</div>
+      ${cardsHTML}
+    `;
+
+    main.querySelectorAll('[data-open]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.dataset.open;
+        main.querySelectorAll('.task-mini-form').forEach(f=>{
+          if(f.dataset.formfor !== id) f.classList.add('hidden');
+        });
+        const form = main.querySelector(`[data-formfor="${id}"]`);
+        form.classList.toggle('hidden');
+        attachSegHandlers(form);
+      });
+    });
+
+    main.querySelectorAll('[data-save]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.save;
+        const task = DUTY_TASKS.find(t=>t.id===id);
+        const form = main.querySelector(`[data-formfor="${id}"]`);
+        const obj = {taskId:id};
+        const timeInput = form.querySelector('input[name="time"]');
+        obj.time = timeInput.value || nowTime();
+        const now = new Date();
+        obj.loggedAt = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+        if(task.extra){
+          task.extra.forEach(f=>{
+            const el = form.querySelector(`[name="${f.key}"]`);
+            if(el) obj[f.key] = el.value;
+          });
+        }
+        await addEntry('duty', currentDate, obj);
+        renderDuty();
+      });
+    });
+
+    main.querySelectorAll('[data-del]').forEach(el=>{
+      el.addEventListener('click', async ()=>{
+        const [taskId, id] = el.dataset.del.split('|');
+        let arr = await loadEntries('duty', currentDate);
+        arr = arr.filter(e=>e.id!==id);
+        await saveEntries('duty', currentDate, arr);
+        renderDuty();
+      });
+    });
+  }
+
+  async function renderOverview(){
+    const cats = ['feeding','diaper','sleep','vitals','mom'];
+    const results = {};
+    for(const c of cats){ results[c] = await loadEntries(c, currentDate); }
+    const dutyEntries = await loadEntries('duty', currentDate);
+    const feedingCount = results.feeding.length;
+    const wetCount = results.diaper.filter(e=>e.type==='小便').length;
+    const stoolCount = results.diaper.filter(e=>e.type==='大便').length;
+    const lastFeed = results.feeding.length ? results.feeding.slice().sort((a,b)=>a.time.localeCompare(b.time)).slice(-1)[0].time : '--:--';
+    const lastTemp = results.vitals.length ? results.vitals.slice().sort((a,b)=>a.time.localeCompare(b.time)).slice(-1)[0] : null;
+    const momLast = results.mom.length ? results.mom.slice().sort((a,b)=>a.time.localeCompare(b.time)).slice(-1)[0] : null;
+
+    main.innerHTML = `
+      <div class="card">
+        <h2><span class="dot"></span>${fmtDateLabel(currentDate)}概览</h2>
+        <div class="summary-grid wide">
+          <div class="stat"><div class="num">${feedingCount}</div><div class="label">喂养次数</div></div>
+          <div class="stat"><div class="num">${wetCount}</div><div class="label">小便次数</div></div>
+          <div class="stat"><div class="num">${stoolCount}</div><div class="label">大便次数</div></div>
+        </div>
+        <div class="summary-grid" style="margin-top:10px;">
+          <div class="stat"><div class="num">${lastFeed}</div><div class="label">最近一次喂养</div></div>
+          <div class="stat"><div class="num">${lastTemp?lastTemp.temp+'℃':'--'}</div><div class="label">最近体温</div></div>
+          <div class="stat"><div class="num">${lastTemp&&lastTemp.jaundiceValue?lastTemp.jaundiceValue:'--'}</div><div class="label">最近黄疸值</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2><span class="dot" style="background:#D4537E"></span>妈妈状态</h2>
+        ${momLast ? `
+          <div class="summary-grid">
+            <div class="stat"><div class="num">${momLast.wound||'-'}</div><div class="label">伤口</div></div>
+            <div class="stat"><div class="num">${momLast.mood||'-'}</div><div class="label">情绪</div></div>
+          </div>
+          <div class="entry-list"><div class="entry-item"><div class="time">${momLast.time}</div><div class="detail">恶露: ${momLast.lochia||'-'}<div class="meta">乳房: ${momLast.breast||'-'}</div></div></div></div>
+        ` : `<div class="empty-hint">今天还没有记录妈妈的恢复情况</div>`}
+      </div>
+      <div class="card">
+        <h2><span class="dot" style="background:#C97B72"></span>月嫂打卡情况</h2>
+        <div class="entry-list">
+          ${DUTY_TASKS.map(task=>{
+            const c = dutyEntries.filter(e=>e.taskId===task.id).length;
+            const targetText = task.target>0 ? `${c}/${task.target}次` : `${c}次`;
+            const ok = task.target===0 ? c>0 : c>=task.target;
+            return `<div class="entry-item"><div class="time" style="color:${ok?'var(--sage-dark)':'var(--ink-soft)'}">${ok?'&#10003;':'&#9675;'}</div><div class="detail">${task.label}<div class="meta">${targetText}</div></div></div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <h2><span class="dot" style="background:#7F77DD"></span>睡眠时间线</h2>
+        ${results.sleep.length ? `<div class="entry-list">${results.sleep.slice().sort((a,b)=>a.time.localeCompare(b.time)).map(e=>`<div class="entry-item"><div class="time">${e.time}</div><div class="detail">${e.event}${e.wakeType&&e.wakeType!=='-' ? ' · '+e.wakeType : ''}</div></div>`).join('')}</div>` : `<div class="empty-hint">还没有睡眠记录</div>`}
+      </div>
+    `;
+  }
+
+  async function render(){
+    dateLabel.textContent = fmtDateLabel(currentDate);
+    if(currentTab === 'overview'){
+      await renderOverview();
+    } else if(currentTab === 'duty'){
+      await renderDuty();
+    } else {
+      await renderCategoryTab(currentTab);
+    }
+  }
+
+  document.querySelectorAll('nav.tabbar button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTab = btn.dataset.tab;
+      render();
+    });
+  });
+
+  function shiftDate(delta){
+    const d = new Date(currentDate+'T00:00:00');
+    d.setDate(d.getDate()+delta);
+    currentDate = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    render();
+  }
+  document.getElementById('prevDay').addEventListener('click', ()=>shiftDate(-1));
+  document.getElementById('nextDay').addEventListener('click', ()=>shiftDate(1));
+
+  render();
+})();
+</script>
+</body>
+</html>
